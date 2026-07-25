@@ -1,0 +1,17 @@
+[package]
+name = "msa-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "First-party HTML/CSS design system and widgets for MSA agent web UI"
+
+[lib]
+name = "msa_ui"
+path = "src/lib.rs"
+
+[dependencies]
+# zero third-party UI frameworks — pure Rust → HTML/CSS
+
+[lints]
+workspace = true

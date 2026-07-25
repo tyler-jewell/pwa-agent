@@ -1,0 +1,82 @@
+[workspace]
+resolver = "2"
+members = ["crates/msa", "crates/msa-log", "crates/msa-ui", "crates/msa-web"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+anyhow = "1"
+age = { version = "0.11", features = ["armor"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+dirs = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ureq = { version = "2", features = ["json"] }
+which = "7"
+walkdir = "2"
+
+# ---------------------------------------------------------------------------
+# Workspace-wide lints — admin-agent gold standard (inherited by all crates)
+# ---------------------------------------------------------------------------
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "allow" # CLI-focused; public lib items document intent in STANDARDS.md
+unused_must_use = "deny"
+unused_results = "allow"
+dead_code = "deny"
+unreachable_pub = "allow"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+# Correctness group as errors (admin gold standard)
+all = { level = "deny", priority = -1 }
+# Pedantic / nursery: warn in IDE; not -D in CI (too noisy for deps/style)
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+# Transitive dep version skew is not agent-controllable
+cargo = { level = "allow", priority = -1 }
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow"
+
+# Explicit denies that block hacky agent code
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "allow" # CLI may print
+print_stderr = "allow"
+exit = "deny"
+# Serde_json Index and crypto pad loops: prefer .get() in new code; not hard-deny.
+indexing_slicing = "allow"
+missing_const_for_fn = "allow"
+map_unwrap_or = "allow"
+unnecessary_wraps = "allow"
+wildcard_imports = "deny"
+clone_on_ref_ptr = "warn"
+mutex_integer = "deny"
+float_cmp = "deny"
+fn_params_excessive_bools = "warn"
+struct_excessive_bools = "warn"
+too_many_lines = "deny"
+cognitive_complexity = "warn"
+
+# Pedantic noise we deliberately allow for CLI ergonomics
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+unused_self = "allow"
+redundant_closure_for_method_calls = "allow"
+single_match_else = "allow"
+doc_markdown = "allow"
+items_after_statements = "allow"
+

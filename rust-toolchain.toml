@@ -1,0 +1,5 @@
+# Admin-agent gold standard: pin toolchain so every agent/CI matches.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy", "rust-src"]
+profile = "minimal"

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MSA vault store (non-secret shape; encrypted at rest)",
+  "type": "object",
+  "required": ["version", "updated_at", "providers"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "updated_at": { "type": "string" },
+    "providers": {
+      "type": "object",
+      "description": "Map of provider id → entry { schema, captured_at, data }",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "schema": { "type": "integer" },
+          "captured_at": { "type": ["string", "null"] },
+          "data": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,15 @@
+{
+  "name": "pwa-llm-bench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated greenfield PWA LLM comparison bench (not msa-web). Port 7430.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "serve": "node serve.mjs",
+    "test": "node --test test/metrics.test.mjs test/schema.test.mjs test/models.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,32 @@
+# Build
+/target/
+**/*.rs.bk
+
+# Secrets / vault (never commit)
+/var/lib/msa-vault/
+**/*.key
+**/master.key
+**/*.enc
+**/.env
+**/.env.*
+**/auth.json
+**/credentials.json
+**/claude.env
+probe-out/
+.msa-local/
+
+# Tool caches
+.grok/
+.claude/
+.local/
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

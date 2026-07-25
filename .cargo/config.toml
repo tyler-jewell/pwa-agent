@@ -1,0 +1,15 @@
+# Cargo aliases — every agent runs the same quality gates.
+[alias]
+# Full local gate (must pass before commit / PR)
+qa = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
+# Format check (CI-style; does not rewrite)
+fmt-check = ["fmt", "--all", "--", "--check"]
+# Preferred: build msa then run full profiler (line limits + dead lines + fmt + clippy + test)
+# Use: cargo run -q -p msa -- quality
+
+[build]
+# Surface future-incompat early
+rustflags = []
+
+[term]
+verbose = false

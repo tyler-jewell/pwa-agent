@@ -1,0 +1,10 @@
+{
+  "name": "PWA-LLM Comparison Bench",
+  "short_name": "PWA-LLM Bench",
+  "description": "Isolated WebLLM vs Transformers.js comparison with JSONL metrics",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0f14",
+  "theme_color": "#0c0f14",
+  "lang": "en"
+}

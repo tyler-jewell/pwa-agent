@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install as /Library/LaunchDaemons/com.macstudioagents.admin-materialize.plist
+  ROOT-owned. Runs pure-Rust `msa materialize all` as the agent user.
+
+  Install-time substitution (replace before install):
+    @AGENT_USER@   e.g. admin-agent
+    @AGENT_HOME@   e.g. /Users/admin-agent
+    @MSA_BIN@      e.g. /Users/admin-agent/.cargo/bin/msa
+    @MSA_VAULT@    e.g. /var/lib/msa-vault
+    @MSA_LOG@      e.g. /var/log/msa/materialize.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.macstudioagents.admin-materialize</string>
+  <key>UserName</key>
+  <string>@AGENT_USER@</string>
+  <key>WorkingDirectory</key>
+  <string>@AGENT_HOME@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>@AGENT_HOME@/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>@AGENT_HOME@</string>
+    <key>MSA_VAULT_DIR</key>
+    <string>@MSA_VAULT@</string>
+  </dict>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@MSA_BIN@</string>
+    <string>materialize</string>
+    <string>all</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>StandardOutPath</key>
+  <string>@MSA_LOG@</string>
+  <key>StandardErrorPath</key>
+  <string>@MSA_LOG@</string>
+</dict>
+</plist>

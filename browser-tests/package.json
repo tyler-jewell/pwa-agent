@@ -1,0 +1,13 @@
+{
+  "name": "msa-browser-tests",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright checks for msa web chat UX (not product runtime)",
+  "scripts": {
+    "test": "playwright test",
+    "test:twice": "playwright test && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}

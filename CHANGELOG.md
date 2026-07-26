@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Production modularity bar:** `validateRuntimeAdapter` port; expanded core purity (`task/` + ban concrete adapter imports); multi-cycle improve-over-time test; README Production readiness evidence table (no fake 100% certainty).
 - **Steady-foot continuous path:** claim–code audit tests; injectable live poll storage; deploy-surface + autonomous self-improve cycle tests; README bounds “infinity” as continuous Vercel deploy + bounded honest agent loops.
 - **Army of small smart people (FP13–16):** capability/context snapshots, structured handoff, bounded task loop, honest achieved/not-achieved reports; `crew-agent` on bus; chat `task:` / multi-item goals; pure modules under `public/js/task/`.
 - **Progressive model ladder** (PWA metaphor): pure `router/progress.js` stages shell → instant → enhancing → capable → offline-ready; sequential mock tiny→small→medium auto-load; large via recruiter; network-aware resume on `online`; rank prefers offlineReady when offline; Models UI shows stage + quality + offline badge.

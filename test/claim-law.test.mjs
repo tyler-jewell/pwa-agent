@@ -57,6 +57,7 @@ describe("claim–code honesty (day-one + continuous deploy)", () => {
       ["handoff", "capability handoff"],
       ["deploy-surface", "vercel continuous deploy"],
       ["self-improve", "autonomous self-improve cycle"],
+      ["modularity-production", "core purity + adapter port + improve cycles"],
       ["brand", "product identity"],
     ];
     for (const [part, label] of required) {

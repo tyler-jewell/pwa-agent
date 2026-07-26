@@ -263,17 +263,32 @@ export async function runSelfTests() {
   return results;
 }
 
+/** Core product paths — must stay free of vendor inference/UI frameworks (FP0). */
+export const CORE_PATH_RE =
+  /(?:^|\/)js\/(core|turn|router|memory|agent|task|live|quality|perf|recruit|train|notify|ports)\//;
+
+const VENDOR_RE =
+  /@mlc-ai\/web-llm|from\s+['"]@mlc-ai|transformers\.js|https:\/\/cdn\.jsdelivr.*webllm|from\s+['"]react['"]|from\s+['"]react-dom|from\s+['"]vue['"]|from\s+['"]@openai|from\s+['"]openai['"]|from\s+['"]@anthropic|from\s+['"]electron['"]/i;
+
 export function checkCorePurityFromText(path, text) {
-  const core =
-    /\/js\/(core|turn|router|memory|agent|live|quality)\//.test(path) ||
-    /js\/(core|turn|router|memory|agent|live|quality)\//.test(path);
-  if (!core) return null;
-  if (
-    /@mlc-ai\/web-llm|from\s+['"]@mlc-ai|transformers\.js|https:\/\/cdn\.jsdelivr.*webllm/i.test(
-      text
-    )
-  ) {
+  const norm = String(path || "").replace(/\\/g, "/");
+  if (!CORE_PATH_RE.test(norm) && !/js\/(core|turn|router|memory|agent|task|live|quality)\//.test(norm)) {
+    return null;
+  }
+  // Quality selftests may import our mock adapter for in-page proof — not a vendor SDK
+  if (/quality\/selftests\.js$/.test(norm)) {
+    if (VENDOR_RE.test(text)) return `vendor import in core path: ${path}`;
+    return null;
+  }
+  if (VENDOR_RE.test(text)) {
     return `vendor import in core path: ${path}`;
+  }
+  // Cores must not hard-depend on a concrete adapter module (swap via registry only)
+  if (
+    !/adapters\/registry\.js$/.test(norm) &&
+    /from\s+['"][^'"]*adapters\/(mock|webllm)/i.test(text)
+  ) {
+    return `core imports concrete adapter (use registry): ${path}`;
   }
   return null;
 }

@@ -41,6 +41,20 @@ A **static, installable Progressive Web Agent** anyone can open in a modern brow
 
 **Continuous “to infinity” (honest bound):** one-click Vercel deploy + git `main` → production is the continuous delivery surface; open clients poll `version.json` (and optional push) forever. **Self-improvement is continuous but bounded**—background agents and crew loops re-run on refresh / multi-step work, write MEMORY and honest reports, and **always terminate** (complete or incomplete with reasons). Not unbounded AGI, not infinite unattended training.
 
+### Production readiness (evidence bar — not marketing)
+
+We do **not** claim mathematical 100% certainty or forever-zero defects. We claim a **production modular PWA** when all of the following are true and tested:
+
+| Bar | Meaning | How proven |
+|-----|---------|------------|
+| **Modular** | Cores (turn · router · memory · agent · task · live · quality) have **no vendor inference/UI SDKs**; models enter only via **RuntimeAdapter** + registry | `checkCorePurityFromText`, `validateRuntimeAdapter`, dual-adapter discover tests |
+| **Simple** | Static ES modules under `public/`; zero required npm install for the app; mock chats offline | `package.json` has no deps; mock adapter ready on boot |
+| **Novel product shape** | Progressive models + MEMORY self-improve + transparent multi-agent feed + capability handoff/loop/honesty | Day-one goals + matching `test/*.test.mjs` |
+| **Improve over time** | Each autonomous cycle can deepen MEMORY / model readiness / honest reports; incomplete work is explicit | performance-manager + crew multi-cycle tests; never silent success |
+| **Deployable** | Vercel Deploy Button, no required secrets; live poll learns new `version.json` | tracked `public/` + `vercel.json` + api degrade; poll tests |
+
+**Guaranteed to improve** means: **if the agent runs its bounded loops, durable improvement-oriented state is written or an honest incomplete report is produced**—not that every human goal succeeds or scores only rise forever.
+
 ---
 
 ## What this is not (public-complete)

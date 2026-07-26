@@ -24,6 +24,10 @@ import {
   wirePerfPromotionApproval,
 } from "./agent/perf-boot.js";
 import { createCrewAgent } from "./agent/crew-agent.js";
+import { createGoalAgent } from "./agent/goal-agent.js";
+import { createPluginRegistry } from "./plugins/registry.js";
+import { createGoogleCalendarPlugin } from "./plugins/google-calendar.js";
+import { createWeatherPlugin } from "./plugins/weather.js";
 import { createAgentNotify } from "./notify/agent-notify.js";
 import { runQualityGate, getFolderBind } from "./quality/gate.js";
 import { createVersionPoll } from "./live/poll.js";
@@ -77,12 +81,24 @@ async function boot() {
     notify,
   });
   const crewAgent = createCrewAgent({ registry });
+  const pluginRegistry = createPluginRegistry();
+  // Register general plugins (catalog modules — install via goal-agent from user prompt)
+  pluginRegistry.register(createGoogleCalendarPlugin({}));
+  pluginRegistry.register(createWeatherPlugin({}));
+  await pluginRegistry.load();
+  const goalAgent = createGoalAgent({
+    pluginRegistry,
+    notify,
+    memoryStore,
+    memoryQueue,
+  });
   bus.register("memory-agent", memoryAgent.handler);
   bus.register("router-agent", routerAgent.handler);
   bus.register("recruiter", recruiterAgent.handler);
   bus.register("trainer", trainerAgent.handler);
   bus.register("performance-manager", performanceManager.handler);
   bus.register("crew-agent", crewAgent.handler);
+  bus.register("goal-agent", goalAgent.handler);
 
   const chatAgent = createChatAgent({
     bus,
@@ -92,6 +108,7 @@ async function boot() {
     memoryStore,
     memoryQueue,
     runQualityGate,
+    pluginRegistry,
   });
 
   const recruitUi = wireRecruitApproval({ bus, notify });
@@ -253,6 +270,14 @@ async function boot() {
         parentRunId: null,
         input: { goal, ...opts },
       }),
+    runCapabilityGoal: (userText) =>
+      bus.invoke({
+        agentId: "goal-agent",
+        name: "capability goal",
+        parentRunId: null,
+        input: { userText, force: true },
+      }),
+    pluginRegistry,
     approveNotify: (id) => notify.approve(id),
     setAggression: (n) => recruitUi.setAggression(n),
     getAggression: () => recruitUi.getAggression(),

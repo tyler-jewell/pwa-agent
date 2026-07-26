@@ -62,7 +62,7 @@ We do **not** claim mathematical 100% certainty or forever-zero defects. We clai
 | Out of scope until “later” | |
 |----------------------------|--|
 | Speech STT/TTS | Text chat first |
-| Arbitrary tools beyond memory-agent + router-agent | Expand the bus later |
+| Arbitrary tools beyond bus + first general plugins (e.g. Google Calendar) | More plugins later; mesh later |
 | Full any-agent-calls-any mesh shipped | Product goal is create-other-agents; ships chat-agent + memory/router/**recruiter**/**trainer** with transparent feed; full mesh expands later |
 | Multi-cloud hosting (Firebase/CF/Netlify parity) | **Vercel only** for public-complete |
 | Chat/inference as a cloud product dependency | On-device default; Vercel serverless only for deploy/version push |

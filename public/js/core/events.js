@@ -39,4 +39,6 @@ export const EVT = {
   RECRUIT: "recruit",
   ROSTER: "roster",
   PERF: "perf",
+  PLUGIN: "plugin",
+  GOAL: "goal-session",
 };

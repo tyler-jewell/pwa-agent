@@ -1,6 +1,7 @@
 /**
- * chat-agent — sole tool principal (FP6). Stream-first turn lifecycle (FP4).
- * Multi-step crew work → crew-agent loop (FP13–16) under this principal.
+ * chat-agent — sole tool principal (FP6).
+ * User prompt only: if capability missing → start goal session (background);
+ * if plugin ready → use it. Never requires a separate human “/goal” command.
  */
 import { runId, nowIso } from "../core/ids.js";
 import { emit, EVT } from "../core/events.js";
@@ -10,6 +11,10 @@ import { runMaybeCompact } from "./chat-compact.js";
 import { isCrewTask, extractCrewGoal } from "./crew-agent.js";
 import { buildCapabilitySnapshot } from "../task/capability.js";
 import { estimateMessagesTokens } from "../core/tokens.js";
+import {
+  detectCapabilityNeeds,
+  isCalendarQuery,
+} from "../plugins/intent.js";
 
 export function createChatAgent({
   bus,
@@ -19,6 +24,7 @@ export function createChatAgent({
   memoryStore,
   memoryQueue,
   runQualityGate,
+  pluginRegistry,
 }) {
   let abortCtrl = null;
 
@@ -54,7 +60,17 @@ export function createChatAgent({
     });
   }
 
-  /** Run one user turn. Streams tokens via onToken; never awaits reflect. */
+  async function streamText(text, onToken) {
+    for (const ch of text) onToken?.(ch);
+  }
+
+  async function finishAssistant(rootRun, name, text, onToken, meta = {}) {
+    await streamText(text, onToken);
+    await transcript.append("assistant", text, meta);
+    pushRoot(rootRun, name, "ok", meta);
+  }
+
+  /** Run one user turn from the prompt alone. */
   async function handleUserMessage(text, { onToken } = {}) {
     const content = (text || "").trim();
     if (!content) return;
@@ -70,22 +86,223 @@ export function createChatAgent({
     if (/run pre-commit|quality gate|run quality/i.test(content)) {
       pushRoot(rootRun, "quality gate", "streaming");
       const reportText = await handleQualityCommand();
-      for (const ch of reportText) onToken?.(ch);
-      await transcript.append("assistant", reportText, { quality: true });
-      pushRoot(rootRun, "quality gate", "ok");
-      return;
-    }
-
-    // Multi-step crew path: army loop under principal
-    if (isCrewTask(content)) {
-      await runCrewTurn({
-        content,
-        rootRun,
-        onToken,
+      await finishAssistant(rootRun, "quality gate", reportText, onToken, {
+        quality: true,
       });
       return;
     }
 
+    // Connect calendar (after plugin installed)
+    if (
+      pluginRegistry &&
+      /^(connect|link|authorize)\s+(my\s+)?google\s+calendar/i.test(content)
+    ) {
+      await runCalendarConnect(rootRun, onToken);
+      return;
+    }
+
+    // Capability path: calendar (and future plugins) from user prompt only
+    const needs = detectCapabilityNeeds(content);
+    if (needs.length && pluginRegistry) {
+      await runCapabilityTurn({ content, needs, rootRun, onToken });
+      return;
+    }
+
+    if (isCrewTask(content)) {
+      await runCrewTurn({ content, rootRun, onToken });
+      return;
+    }
+
+    await runModelTurn({ content, rootRun, onToken, signal });
+  }
+
+  async function runCapabilityTurn({ content, needs, rootRun, onToken }) {
+    let missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
+    const zeroAuthMissing = missing.filter((n) => n.requiresAuth === false);
+
+    // Zero-auth gaps (e.g. weather): learn + answer in one turn — no human mid-loop
+    if (zeroAuthMissing.length) {
+      pushRoot(rootRun, "capability goal", "streaming", {
+        missing: zeroAuthMissing.map((m) => m.pluginId),
+      });
+      try {
+        const goal = await bus.invoke({
+          agentId: "goal-agent",
+          name: "capability goal",
+          parentRunId: rootRun,
+          input: { userText: content, force: true },
+        });
+        pushRoot(rootRun, "capability goal", goal?.ok === false ? "error" : "ok", {
+          plugins: goal?.pluginsInstalled,
+          status: goal?.state?.status,
+        });
+      } catch (e) {
+        pushRoot(rootRun, "capability goal", "error", {
+          error: String(e?.message || e),
+        });
+      }
+      missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
+      // Fall through to use plugins that are now installed
+    }
+
+    // Installed → use general plugin handleQuery / calendar path
+    const readyNeed = needs.find((n) => pluginRegistry.isInstalled(n.pluginId));
+    if (readyNeed) {
+      const text = await invokePlugin(readyNeed, content, rootRun);
+      if (text != null) {
+        await finishAssistant(rootRun, `plugin ${readyNeed.pluginId}`, text, onToken, {
+          plugin: readyNeed.pluginId,
+        });
+        bus
+          .invoke({
+            agentId: "memory-agent",
+            name: "reflect",
+            parentRunId: rootRun,
+            input: { op: "reflect", userText: content, assistantText: text },
+          })
+          .catch(() => {});
+        return;
+      }
+    }
+
+    // Still missing auth-gated plugins only
+    missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
+    if (!missing.length) {
+      await finishAssistant(
+        rootRun,
+        "capability",
+        "Capability is installed but could not produce an answer.",
+        onToken,
+        { error: true }
+      );
+      return;
+    }
+
+    const titles = missing.map((m) => m.title).join(", ");
+    const reply =
+      `I can’t do that yet — I don’t have **${titles}** installed.\n\n` +
+      `Starting a background **goal session** from your message alone: ` +
+      `research → design a **general** plugin → install → verify → ` +
+      `**notify you when ready**.` +
+      (missing.some((m) => m.requiresAuth)
+        ? " Auth-gated plugins may need one connect step after install."
+        : "");
+
+    pushRoot(rootRun, "capability gap", "streaming", { missing });
+    await finishAssistant(rootRun, "capability gap", reply, onToken, {
+      goalStarted: true,
+      missing: missing.map((m) => m.pluginId),
+    });
+
+    bus
+      .invoke({
+        agentId: "goal-agent",
+        name: "capability goal",
+        parentRunId: rootRun,
+        input: { userText: content },
+      })
+      .then((r) => {
+        if (r?.pluginsInstalled?.length) {
+          emit(EVT.PILL, {
+            level: "ok",
+            message: `goal complete: ${r.pluginsInstalled.join(", ")}`,
+          });
+        }
+      })
+      .catch((e) => {
+        emit(EVT.PILL, {
+          level: "err",
+          message: `goal failed: ${e.message || e}`,
+        });
+      });
+  }
+
+  /** Dispatch installed general plugin by id. */
+  async function invokePlugin(need, content, rootRun) {
+    const plugin = pluginRegistry.get(need.pluginId);
+    if (!plugin) return null;
+    pushRoot(rootRun, `plugin ${need.pluginId}`, "streaming", {
+      pluginId: need.pluginId,
+    });
+
+    if (typeof plugin.handleQuery === "function") {
+      const result = await plugin.handleQuery(content);
+      if (plugin.formatForecast) return plugin.formatForecast(result);
+      if (plugin.formatEvents) return plugin.formatEvents(result);
+      return typeof result === "string" ? result : JSON.stringify(result);
+    }
+
+    if (need.pluginId === "google-calendar") {
+      if (plugin.isAuthed && !(await plugin.isAuthed())) {
+        return (
+          "Google Calendar plugin is ready (general — any Google user). " +
+          "Say **connect google calendar** once, then ask again."
+        );
+      }
+      const days = /\b(week)\b/i.test(content) ? 7 : 3;
+      const result = await plugin.listUpcoming({ days });
+      return plugin.formatEvents(result);
+    }
+    return null;
+  }
+
+  async function runCalendarConnect(rootRun, onToken) {
+    const plugin = pluginRegistry?.get("google-calendar");
+    if (!plugin || !pluginRegistry.isInstalled("google-calendar")) {
+      const msg =
+        "Calendar plugin is not installed yet. Ask about your calendar first " +
+        "so a goal session can build the general plugin, wait for the “New plugin ready” notify, then connect.";
+      await finishAssistant(rootRun, "connect calendar", msg, onToken, {});
+      return;
+    }
+    pushRoot(rootRun, "connect google calendar", "streaming");
+    const r = await plugin.connect({ interactive: true });
+    const msg = r.ok
+      ? r.mock
+        ? "Connected (mock general session). Ask: “anything on my google calendar for the next few days?” — same plugin path for every Google user; set GOOGLE_CLIENT_ID for live OAuth."
+        : "Connected. Ask again about the next few days on your calendar."
+      : `Connect failed: ${r.error || "unknown"}`;
+    await finishAssistant(rootRun, "connect google calendar", msg, onToken, {
+      connected: r.ok,
+      mock: r.mock,
+    });
+  }
+
+  async function runCrewTurn({ content, rootRun, onToken }) {
+    const goal = extractCrewGoal(content);
+    pushRoot(rootRun, "crew loop", "streaming", { goal });
+    let crewResult;
+    try {
+      crewResult = await bus.invoke({
+        agentId: "crew-agent",
+        name: "task loop",
+        parentRunId: rootRun,
+        input: { goal },
+      });
+    } catch (e) {
+      const msg = `Crew error: ${e?.message || e}`;
+      await finishAssistant(rootRun, "crew loop", msg, onToken, { error: true });
+      return;
+    }
+    const text =
+      crewResult?.text ||
+      crewResult?.report?.summary ||
+      "Crew finished without a report.";
+    await finishAssistant(rootRun, "crew loop", text, onToken, {
+      crew: true,
+      report: crewResult?.report,
+    });
+    bus
+      .invoke({
+        agentId: "memory-agent",
+        name: "reflect",
+        parentRunId: rootRun,
+        input: { op: "reflect", userText: content, assistantText: text },
+      })
+      .catch(() => {});
+  }
+
+  async function runModelTurn({ content, rootRun, onToken, signal }) {
     let modelId = registry.getPreferred()?.id || null;
     try {
       const route = await bus.invoke({
@@ -102,12 +319,13 @@ export function createChatAgent({
     const model = modelId ? registry.get(modelId) : registry.bestReady();
     if (!model) {
       emit(EVT.LIMITED, { reason: "no ready model" });
-      await transcript.append(
-        "assistant",
-        "Limited mode: no model is ready yet. Wait for a tiny/mock model to load, then try again.",
+      await finishAssistant(
+        rootRun,
+        "chat turn",
+        "Limited mode: no model is ready yet.",
+        onToken,
         { limited: true }
       );
-      pushRoot(rootRun, "chat turn", "error", { error: "no ready model" });
       return;
     }
 
@@ -142,8 +360,13 @@ export function createChatAgent({
 
     const adapter = registry.getAdapterFor(model.id);
     if (!adapter) {
-      await transcript.append("assistant", "Runtime adapter unavailable for selected model.");
-      pushRoot(rootRun, "chat turn", "error", { error: "no adapter" });
+      await finishAssistant(
+        rootRun,
+        "chat turn",
+        "Runtime adapter unavailable.",
+        onToken,
+        { error: true }
+      );
       return;
     }
 
@@ -187,55 +410,12 @@ export function createChatAgent({
         input: { op: "reflect", userText: content, assistantText: full },
       })
       .catch((e) => {
-        emit(EVT.PILL, { level: "err", message: `memory failed: ${e.message || e}` });
+        emit(EVT.PILL, {
+          level: "err",
+          message: `memory failed: ${e.message || e}`,
+        });
       });
   }
 
-  async function runCrewTurn({ content, rootRun, onToken }) {
-    const goal = extractCrewGoal(content);
-    pushRoot(rootRun, "crew loop", "streaming", { goal });
-
-    let crewResult;
-    try {
-      crewResult = await bus.invoke({
-        agentId: "crew-agent",
-        name: "task loop",
-        parentRunId: rootRun,
-        input: { goal },
-      });
-    } catch (e) {
-      const msg = `Crew error: ${e?.message || e}`;
-      for (const ch of msg) onToken?.(ch);
-      await transcript.append("assistant", msg, { error: true });
-      pushRoot(rootRun, "crew loop", "error", { error: String(e?.message || e) });
-      return;
-    }
-
-    const text =
-      crewResult?.text ||
-      crewResult?.report?.summary ||
-      "Crew finished without a report.";
-    for (const ch of text) onToken?.(ch);
-    await transcript.append("assistant", text, {
-      crew: true,
-      report: crewResult?.report,
-    });
-    pushRoot(rootRun, "crew loop", crewResult?.ok === false ? "error" : "ok", {
-      report: crewResult?.report,
-      complete: crewResult?.report?.complete,
-    });
-
-    bus
-      .invoke({
-        agentId: "memory-agent",
-        name: "reflect",
-        parentRunId: rootRun,
-        input: { op: "reflect", userText: content, assistantText: text },
-      })
-      .catch((e) => {
-        emit(EVT.PILL, { level: "err", message: `memory failed: ${e.message || e}` });
-      });
-  }
-
-  return { handleUserMessage, abortInflight, isCrewTask };
+  return { handleUserMessage, abortInflight, isCrewTask, isCalendarQuery };
 }

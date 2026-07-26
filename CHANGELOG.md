@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Zero-auth self-learn (weather):** Open-Meteo general weather plugin; user prompt alone runs goal→install→notify→answer with no connect step; multi-place reuse; shared intent/goal/plugin path with calendar.
+- **User-prompt → goal session → general plugin:** calendar (and future) capability gaps start only from the user message; `goal-agent` research/design/install/verify; push/notify “New plugin ready”; Google Calendar plugin is portable (any Google user after OAuth), not single-account hardcode.
 - **Production modularity bar:** `validateRuntimeAdapter` port; expanded core purity (`task/` + ban concrete adapter imports); multi-cycle improve-over-time test; README Production readiness evidence table (no fake 100% certainty).
 - **Steady-foot continuous path:** claim–code audit tests; injectable live poll storage; deploy-surface + autonomous self-improve cycle tests; README bounds “infinity” as continuous Vercel deploy + bounded honest agent loops.
 - **Army of small smart people (FP13–16):** capability/context snapshots, structured handoff, bounded task loop, honest achieved/not-achieved reports; `crew-agent` on bus; chat `task:` / multi-item goals; pure modules under `public/js/task/`.

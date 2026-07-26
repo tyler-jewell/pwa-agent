@@ -23,6 +23,7 @@ const AGENTS = new Set([
   "trainer",
   "performance-manager",
   "crew-agent",
+  "goal-agent",
 ]);
 
 export function utf8Bytes(str) {

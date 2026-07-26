@@ -213,6 +213,118 @@ describe("prompt → goal → notify → answer (no human mid-loop)", () => {
   });
 });
 
+describe("honest fail when learn cannot install", () => {
+  it("install ok:false → chat surfaces Outcome exhausted, not background re-start lie", async () => {
+    globalThis.Notification = undefined;
+    const tree = createRunTree();
+    const bus = createBus({ tree });
+    const pluginRegistry = createPluginRegistry();
+    // Catalog present but install always fails
+    pluginRegistry.register(createWeatherPlugin({ fetchImpl: mockFetchWeather() }));
+    const origInstall = pluginRegistry.install.bind(pluginRegistry);
+    pluginRegistry.install = async () => ({ ok: false, error: "forced-install-fail" });
+
+    const notifications = [];
+    const notify = {
+      notify: async (n) => {
+        notifications.push(n);
+        return { id: "n", ...n };
+      },
+    };
+    let memoryContent = SEED_MEMORY;
+    const memoryStore = {
+      getHead: () => ({ id: "h", content: memoryContent }),
+      commit: async ({ content }) => {
+        memoryContent = content;
+        return { ok: true, version: { id: "h2", content } };
+      },
+    };
+    bus.register(
+      "goal-agent",
+      createGoalAgent({
+        pluginRegistry,
+        notify,
+        memoryStore,
+        memoryQueue: createMemoryQueue(),
+      }).handler
+    );
+    bus.register("memory-agent", async () => ({ ok: true, noop: true }));
+    bus.register("router-agent", async () => ({ modelId: "mock-tiny" }));
+    const registry = createRegistry();
+    registry.registerAdapter(createMockAdapter({ progressiveDelayMs: 1 }));
+    await registry.discoverAll();
+    const msgs = [];
+    const transcript = {
+      getMessages: () => msgs.slice(),
+      append: async (role, content, meta = {}) => {
+        msgs.push({ id: msgId(), role, content, createdAt: nowIso(), meta });
+      },
+      replaceMessages: async () => {},
+    };
+    const chat = createChatAgent({
+      bus,
+      tree,
+      registry,
+      transcript,
+      memoryStore,
+      memoryQueue: createMemoryQueue(),
+      pluginRegistry,
+    });
+
+    await chat.handleUserMessage(PROMPT, { onToken: () => {} });
+    const assistant = msgs.filter((m) => m.role === "assistant").pop();
+    assert.ok(assistant, "assistant reply required");
+    assert.match(assistant.content, /Outcome:\s*exhausted/i);
+    assert.match(assistant.content, /Not achieved/i);
+    assert.ok(!/Starting a background/i.test(assistant.content));
+    assert.equal(assistant.meta.goalFailed, true);
+    assert.equal(assistant.meta.complete, false);
+    assert.equal(pluginRegistry.isInstalled("weather"), false);
+    // No false plugin-ready notify on failed install
+    assert.ok(
+      !notifications.some((n) => n.data?.type === "plugin-ready"),
+      "must not notify plugin-ready when install failed"
+    );
+    // goal-agent tree node should not be silent ok
+    const flat = JSON.stringify(tree.listRoots());
+    assert.match(flat, /"status":"error"|goalFailed|exhausted/i);
+    // restore for cleanliness
+    pluginRegistry.install = origInstall;
+  });
+
+  it("goal-agent returns ok:false when install fails (bus error status)", async () => {
+    const pluginRegistry = createPluginRegistry();
+    pluginRegistry.register(createWeatherPlugin({ fetchImpl: mockFetchWeather() }));
+    pluginRegistry.install = async () => ({ ok: false, error: "nope" });
+    const tree = createRunTree();
+    const bus = createBus({ tree });
+    bus.register(
+      "goal-agent",
+      createGoalAgent({
+        pluginRegistry,
+        notify: { notify: async () => ({ id: "x" }) },
+        memoryStore: {
+          getHead: () => ({ id: "h", content: SEED_MEMORY }),
+          commit: async () => ({ ok: true }),
+        },
+        memoryQueue: createMemoryQueue(),
+      }).handler
+    );
+    const r = await bus.invoke({
+      agentId: "goal-agent",
+      name: "capability goal",
+      parentRunId: null,
+      input: { userText: PROMPT, force: true },
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.report.complete, false);
+    assert.match(r.report.summary || r.error || "", /exhausted|Not achieved|incomplete/i);
+    const roots = tree.listRoots();
+    const goalNode = roots.find((n) => n.agentId === "goal-agent") || roots[0];
+    assert.equal(goalNode.status, "error");
+  });
+});
+
 describe("shared learn surface", () => {
   it("main registers weather + goal-agent; not calendar-only", () => {
     const main = readFileSync(join(root, "public/js/main.js"), "utf8");

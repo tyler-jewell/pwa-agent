@@ -95,16 +95,26 @@ export function createGoalAgent({ pluginRegistry, notify, memoryStore, memoryQue
     });
 
     running.delete(key);
+    const complete =
+      result.report?.complete === true &&
+      result.state?.status === "complete";
+    // Bus maps ok:false → tree error — never silent success on exhausted learn
     return {
-      ok: true,
+      ok: complete,
       started: result.started,
       state: result.state,
       report: result.report,
-      pluginsInstalled: result.state.pluginsInstalled,
+      pluginsInstalled: result.state.pluginsInstalled || [],
+      error: complete
+        ? undefined
+        : result.report?.summary ||
+          `goal ${result.state?.status || "incomplete"}`,
       detail: {
         status: result.state.status,
+        complete: !!complete,
         plugins: result.state.pluginsInstalled,
         originPrompt: result.state.originPrompt,
+        notAchieved: result.report?.notAchieved || [],
       },
     };
   }

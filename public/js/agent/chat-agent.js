@@ -119,6 +119,8 @@ export function createChatAgent({
   async function runCapabilityTurn({ content, needs, rootRun, onToken }) {
     let missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
     const zeroAuthMissing = missing.filter((n) => n.requiresAuth === false);
+    /** @type {object|null} */
+    let zeroAuthGoal = null;
 
     // Zero-auth gaps (e.g. weather): learn + answer in one turn — no human mid-loop
     if (zeroAuthMissing.length) {
@@ -126,33 +128,52 @@ export function createChatAgent({
         missing: zeroAuthMissing.map((m) => m.pluginId),
       });
       try {
-        const goal = await bus.invoke({
+        zeroAuthGoal = await bus.invoke({
           agentId: "goal-agent",
           name: "capability goal",
           parentRunId: rootRun,
           input: { userText: content, force: true },
         });
-        pushRoot(rootRun, "capability goal", goal?.ok === false ? "error" : "ok", {
-          plugins: goal?.pluginsInstalled,
-          status: goal?.state?.status,
-        });
+        pushRoot(
+          rootRun,
+          "capability goal",
+          zeroAuthGoal?.ok === false ? "error" : "ok",
+          {
+            plugins: zeroAuthGoal?.pluginsInstalled,
+            status: zeroAuthGoal?.state?.status,
+            complete: zeroAuthGoal?.report?.complete,
+          }
+        );
       } catch (e) {
         pushRoot(rootRun, "capability goal", "error", {
           error: String(e?.message || e),
         });
+        zeroAuthGoal = {
+          ok: false,
+          report: {
+            complete: false,
+            summary:
+              `Outcome: exhausted\nGoal learn failed: ${e?.message || e}\n` +
+              `Not achieved: install general plugin`,
+          },
+          state: { status: "exhausted" },
+        };
       }
       missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
-      // Fall through to use plugins that are now installed
     }
 
-    // Installed → use general plugin handleQuery / calendar path
+    // Installed → use general plugin
     const readyNeed = needs.find((n) => pluginRegistry.isInstalled(n.pluginId));
     if (readyNeed) {
       const text = await invokePlugin(readyNeed, content, rootRun);
       if (text != null) {
-        await finishAssistant(rootRun, `plugin ${readyNeed.pluginId}`, text, onToken, {
-          plugin: readyNeed.pluginId,
-        });
+        await finishAssistant(
+          rootRun,
+          `plugin ${readyNeed.pluginId}`,
+          text,
+          onToken,
+          { plugin: readyNeed.pluginId }
+        );
         bus
           .invoke({
             agentId: "memory-agent",
@@ -165,8 +186,35 @@ export function createChatAgent({
       }
     }
 
-    // Still missing auth-gated plugins only
     missing = needs.filter((n) => !pluginRegistry.isInstalled(n.pluginId));
+    const stillZeroAuth = missing.filter((n) => n.requiresAuth === false);
+    const stillAuth = missing.filter((n) => n.requiresAuth !== false);
+
+    // Zero-auth learn already ran and still missing → honest incomplete (never re-start lie)
+    if (zeroAuthMissing.length && stillZeroAuth.length) {
+      const report = zeroAuthGoal?.report;
+      const text =
+        report?.summary ||
+        [
+          "Outcome: exhausted",
+          `Goal: learn plugins ${stillZeroAuth.map((n) => n.pluginId).join(", ")}`,
+          `Achieved (0): —`,
+          `Not achieved (${stillZeroAuth.length}): ${stillZeroAuth
+            .map((n) => n.title + " (goal did not install)")
+            .join("; ")}`,
+          zeroAuthGoal?.error ? `Why: ${zeroAuthGoal.error}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      await finishAssistant(rootRun, "capability goal failed", text, onToken, {
+        goalFailed: true,
+        honest: true,
+        complete: false,
+        missing: stillZeroAuth.map((m) => m.pluginId),
+      });
+      return;
+    }
+
     if (!missing.length) {
       await finishAssistant(
         rootRun,
@@ -178,20 +226,21 @@ export function createChatAgent({
       return;
     }
 
-    const titles = missing.map((m) => m.title).join(", ");
+    // Auth-gated only: background goal + notify (no second await here)
+    const titles = stillAuth.map((m) => m.title).join(", ") || missing.map((m) => m.title).join(", ");
     const reply =
       `I can’t do that yet — I don’t have **${titles}** installed.\n\n` +
       `Starting a background **goal session** from your message alone: ` +
       `research → design a **general** plugin → install → verify → ` +
       `**notify you when ready**.` +
-      (missing.some((m) => m.requiresAuth)
+      (stillAuth.length
         ? " Auth-gated plugins may need one connect step after install."
         : "");
 
-    pushRoot(rootRun, "capability gap", "streaming", { missing });
+    pushRoot(rootRun, "capability gap", "streaming", { missing: stillAuth });
     await finishAssistant(rootRun, "capability gap", reply, onToken, {
       goalStarted: true,
-      missing: missing.map((m) => m.pluginId),
+      missing: stillAuth.map((m) => m.pluginId),
     });
 
     bus
@@ -206,6 +255,11 @@ export function createChatAgent({
           emit(EVT.PILL, {
             level: "ok",
             message: `goal complete: ${r.pluginsInstalled.join(", ")}`,
+          });
+        } else if (r?.ok === false) {
+          emit(EVT.PILL, {
+            level: "err",
+            message: `goal incomplete: ${r.error || r.state?.status || "failed"}`,
           });
         }
       })

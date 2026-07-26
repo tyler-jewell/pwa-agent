@@ -5,6 +5,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateVersionManifest } from "../public/js/core/schema.js";
@@ -143,5 +144,21 @@ describe("Deploy Button / continuous deploy surface", () => {
     assert.match(main, /createSoftReset/);
     assert.match(main, /softApplied/);
     assert.match(main, /createUpdateBanner/);
+  });
+
+  it("git tracks public/, test/, vercel.json (Deploy Button clone surface)", () => {
+    // Fail if the PWA is only local untracked — clone would 404.
+    assert.ok(existsSync(join(root, "public/index.html")));
+    assert.ok(existsSync(join(root, "vercel.json")));
+    const tracked = execSync(
+      "git ls-files public vercel.json package.json api test",
+      { cwd: root, encoding: "utf8" }
+    );
+    assert.match(tracked, /public\/index\.html/);
+    assert.match(tracked, /public\/version\.json/);
+    assert.match(tracked, /vercel\.json/);
+    assert.match(tracked, /package\.json/);
+    assert.match(tracked, /api\/subscribe\.js/);
+    assert.match(tracked, /test\/deploy-surface\.test\.mjs/);
   });
 });

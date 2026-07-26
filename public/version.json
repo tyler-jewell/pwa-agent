@@ -1,0 +1,9 @@
+{
+  "buildId": "dev-bootstrap-001",
+  "createdAt": "2026-07-25T00:00:00.000Z",
+  "channel": "local",
+  "changelog": {
+    "summary": "pwa: progressive models, crew handoff/loop honesty, MEMORY self-improve, continuous Vercel deploy.",
+    "full": "Day-one: progressive ladder, MEMORY, multi-agent feed, army/capability/handoff/loop/honest reports, live version poll, Deploy Button without secrets. Continuous improvement = bounded agent loops + continuous deploy—not unbounded AGI."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "pwa",
+  "private": true,
+  "type": "module",
+  "description": "Progressive Web Agent (pwa) — progressive models, self-improving MEMORY, transparent multi-agent feed",
+  "scripts": {
+    "start": "npx --yes serve public -p 4173",
+    "serve": "npx --yes serve public -p 4173",
+    "test": "node --test test/**/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

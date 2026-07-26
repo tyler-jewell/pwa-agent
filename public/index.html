@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Progressive Web Agent — progressive models, self-improving memory, transparent agent feed" />
+  <title>Progressive Web Agent</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <a class="skip-link" href="#composer">Skip to chat</a>
+  <div id="app">
+    <header class="topbar" role="banner">
+      <div class="brand">
+        <strong>Progressive Web Agent</strong>
+        <span class="brand-id" aria-hidden="true">pwa</span>
+        <span id="runtime-status" class="pill muted" aria-live="polite">starting…</span>
+      </div>
+      <nav class="top-actions" aria-label="App actions">
+        <button type="button" id="btn-quality" class="btn">Quality</button>
+        <button type="button" id="btn-export" class="btn">Export</button>
+        <label class="btn file-btn">Import<input type="file" id="import-file" accept="application/json,.json" hidden /></label>
+        <button type="button" id="btn-reset" class="btn danger">Clear</button>
+      </nav>
+    </header>
+
+    <div id="update-banner" class="update-banner hidden" role="status" aria-live="polite"></div>
+    <div id="pills" class="pills" aria-live="polite"></div>
+
+    <main class="layout" role="main">
+      <section class="panel chat-panel" aria-label="Chat">
+        <div id="transcript" class="transcript" tabindex="0" aria-label="Conversation transcript"></div>
+        <form id="composer-form" class="composer">
+          <label class="sr-only" for="composer">Message</label>
+          <textarea id="composer" rows="2" placeholder="Message… (Enter to send, Shift+Enter newline)" autocomplete="off"></textarea>
+          <button type="submit" id="btn-send" class="btn primary">Send</button>
+        </form>
+      </section>
+
+      <aside class="side" aria-label="Side panels">
+        <section class="panel" aria-labelledby="models-h">
+          <h2 id="models-h">Models</h2>
+          <div id="aggression-control" class="aggression-control"></div>
+          <ul id="model-list" class="model-list"></ul>
+          <h3 class="subh">Live roster</h3>
+          <pre id="roster-out" class="roster-out" tabindex="0" aria-label="Live models roster"></pre>
+        </section>
+        <section class="panel" aria-labelledby="notify-h">
+          <h2 id="notify-h">Agent proposals</h2>
+          <div id="agent-notify" class="agent-notify" aria-live="polite"></div>
+        </section>
+        <section class="panel" aria-labelledby="tree-h">
+          <h2 id="tree-h">Run tree</h2>
+          <div id="run-tree" class="run-tree" role="tree" aria-label="Agent run tree"></div>
+        </section>
+        <section class="panel memory-panel" aria-labelledby="memory-h">
+          <h2 id="memory-h">MEMORY.md</h2>
+          <pre id="memory-head" class="memory-head" tabindex="0"></pre>
+          <h3 class="subh">Versions</h3>
+          <ul id="memory-versions" class="version-list"></ul>
+        </section>
+      </aside>
+    </main>
+
+    <dialog id="quality-dialog" class="dialog">
+      <form method="dialog" class="dialog-inner">
+        <h2>Quality gate</h2>
+        <pre id="quality-out" class="quality-out"></pre>
+        <button value="ok" class="btn primary">Close</button>
+      </form>
+    </dialog>
+  </div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
